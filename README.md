@@ -42,7 +42,3 @@ desenvolvida com React Native, consumo de API REST e banco de dados relacional.
 npm install
 npm start
 
-👨‍💻 Autor
-
-Wilson Freitas de Oliveira
-Estudante de Engenharia de Software | Desenvolvedor Frontend / Mobile
