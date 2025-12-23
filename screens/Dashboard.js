@@ -19,6 +19,7 @@ import { BarChart, LineChart } from 'react-native-chart-kit';
 const screenWidth = Dimensions.get('window').width;
 
 export default function Dashboard({ navigation, onLogout }) {
+
     const [transacoes, setTransacoes] = useState([]);
     const [saldo, setSaldo] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -38,6 +39,7 @@ export default function Dashboard({ navigation, onLogout }) {
         carregarTransacoes();
     }, []);
 
+    /* 🔐 Usuário */
     const carregarUsuario = async () => {
         try {
             const userData = await AsyncStorage.getItem('@usuario');
@@ -49,12 +51,14 @@ export default function Dashboard({ navigation, onLogout }) {
         }
     };
 
+    /* 💰 Util */
     const formatarBRL = (valor) =>
         new Intl.NumberFormat('pt-BR', {
             style: 'currency',
             currency: 'BRL'
         }).format(valor);
 
+    /* 📥 API */
     const carregarTransacoes = async () => {
         try {
             const response = await fetch(`${baseURL}/api/transacoes`);
@@ -76,6 +80,7 @@ export default function Dashboard({ navigation, onLogout }) {
         }
     };
 
+    /* ➕ Nova transação */
     const salvarTransacao = async () => {
         const valorNum = parseFloat(String(valor).replace(',', '.'));
 
@@ -107,18 +112,8 @@ export default function Dashboard({ navigation, onLogout }) {
         }
     };
 
+    /* ❌ Excluir */
     const excluirTransacao = async (id) => {
-        if (Platform.OS !== 'web') {
-            return Alert.alert(
-                'Excluir',
-                'Deseja realmente excluir?',
-                [
-                    { text: 'Cancelar', style: 'cancel' },
-                    { text: 'Excluir', style: 'destructive', onPress: () => excluirTransacao(id) }
-                ]
-            );
-        }
-
         try {
             await fetch(`${baseURL}/api/transacoes/${id}`, { method: 'DELETE' });
             carregarTransacoes();
@@ -127,6 +122,7 @@ export default function Dashboard({ navigation, onLogout }) {
         }
     };
 
+    /* 🚪 Logout */
     const handleLogout = () => {
         const sair = () => {
             onLogout && onLogout();
@@ -165,8 +161,7 @@ export default function Dashboard({ navigation, onLogout }) {
         backgroundGradientFrom: '#ffffff',
         backgroundGradientTo: '#ffffff',
         color: (o = 1) => `rgba(130, 10, 209, ${o})`,
-        labelColor: () => '#333',
-        strokeWidth: 2
+        labelColor: () => '#333'
     };
 
     const renderItem = ({ item }) => (
@@ -193,22 +188,21 @@ export default function Dashboard({ navigation, onLogout }) {
 
     return (
         <ScrollView style={styles.container}>
-            {/* Header */}
+
+            {/* HEADER */}
             <View style={styles.header}>
                 <Text style={styles.headerTitulo}>MyMoney</Text>
                 {usuario && <Text style={styles.headerUsuario}>Olá, {usuario.nome}</Text>}
 
-                {/* 🔥 BOTÃO SAIR PROFISSIONAL */}
                 <TouchableOpacity
                     style={styles.logoutButton}
                     onPress={handleLogout}
-                    activeOpacity={0.8}
                 >
                     <Text style={styles.logoutButtonText}>🚪 Sair</Text>
                 </TouchableOpacity>
             </View>
 
-            {/* Saldo */}
+            {/* SALDO */}
             <View style={styles.cardSaldo}>
                 <Text style={styles.saldoLabel}>Saldo disponível</Text>
                 <Text style={styles.saldoValor}>{formatarBRL(saldo)}</Text>
@@ -219,7 +213,20 @@ export default function Dashboard({ navigation, onLogout }) {
                 </View>
             </View>
 
-            {/* Gráficos */}
+            {/* 🔥 BOTÃO RELATÓRIOS */}
+            <TouchableOpacity
+                style={styles.relatoriosButton}
+                onPress={() =>
+                    navigation.navigate('Relatorios', {
+                        transacoes,
+                        saldo
+                    })
+                }
+            >
+                <Text style={styles.relatoriosButtonText}>📊 Ver Relatórios</Text>
+            </TouchableOpacity>
+
+            {/* GRÁFICOS */}
             <View style={styles.card}>
                 <Text style={styles.cardTitulo}>Entradas x Saídas</Text>
                 <BarChart
@@ -248,7 +255,7 @@ export default function Dashboard({ navigation, onLogout }) {
                 />
             </View>
 
-            {/* Formulário */}
+            {/* FORM */}
             <View style={styles.card}>
                 <Text style={styles.cardTitulo}>Nova Transação</Text>
 
@@ -276,7 +283,7 @@ export default function Dashboard({ navigation, onLogout }) {
                 <Button title="Salvar" onPress={salvarTransacao} />
             </View>
 
-            {/* Lista */}
+            {/* LISTA */}
             <Text style={styles.listaTitulo}>Últimas movimentações</Text>
 
             {loading
@@ -287,6 +294,7 @@ export default function Dashboard({ navigation, onLogout }) {
                     renderItem={renderItem}
                 />
             }
+
         </ScrollView>
     );
 }
@@ -320,7 +328,6 @@ const styles = StyleSheet.create({
     },
     logoutButtonText: {
         color: '#fff',
-        fontSize: 16,
         fontWeight: 'bold'
     },
     cardSaldo: {
@@ -340,6 +347,18 @@ const styles = StyleSheet.create({
     resumoLinha: {
         flexDirection: 'row',
         justifyContent: 'space-between'
+    },
+    relatoriosButton: {
+        backgroundColor: '#000',
+        padding: 14,
+        borderRadius: 10,
+        alignItems: 'center',
+        marginBottom: 16
+    },
+    relatoriosButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold'
     },
     card: {
         backgroundColor: '#fff',

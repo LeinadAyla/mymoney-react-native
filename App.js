@@ -13,10 +13,12 @@ import Dashboard from './screens/Dashboard';
 import Cadastro from './screens/Cadastro';
 import Detalhes from './screens/Detalhes';
 import Editar from './screens/Editar';
+import RelatoriosScreen from './screens/RelatoriosScreen';
 
 const Stack = createNativeStackNavigator();
 const TASK_NAME = "exportarRelatorioMensal";
 
+/* 🔐 Storage compatível Web / Mobile */
 const storage = Platform.OS === 'web'
     ? {
         getItem: async (key) => Promise.resolve(localStorage.getItem(key)),
@@ -26,92 +28,69 @@ const storage = Platform.OS === 'web'
     : AsyncStorageNative;
 
 export default function App() {
-    const transacoesMock = [
-        { id: "1", descricao: "Salário", tipo: "entrada", valor: 3500 },
-        { id: "2", descricao: "Supermercado", tipo: "saida", valor: -250 },
-        { id: "3", descricao: "Transporte", tipo: "saida", valor: -120 }
-    ];
 
-    const [transacoes, setTransacoes] = useState(transacoesMock);
-    const [saldo, setSaldo] = useState(
-        transacoesMock.reduce((acc, t) => acc + t.valor, 0)
-    );
+    /* 📊 Estado principal */
+    const [transacoes, setTransacoes] = useState([]);
+    const [saldo, setSaldo] = useState(0);
 
-    // 🔥 Estado de autenticação
+    /* 🔥 Autenticação */
     const [usuario, setUsuario] = useState(null);
 
+    /* 📥 Carregar dados salvos */
     useEffect(() => {
-        const carregarTransacoes = async () => {
+        const carregarDados = async () => {
             try {
-                const dadosSalvos = await storage.getItem('@transacoes');
-                if (dadosSalvos) {
-                    const lista = JSON.parse(dadosSalvos);
-                    setTransacoes(lista);
-                    setSaldo(lista.reduce((acc, t) => acc + t.valor, 0));
-                }
-            } catch (error) {
-                console.log('Erro ao carregar transações:', error);
-            }
-        };
-        carregarTransacoes();
+                const dados = await storage.getItem('@transacoes');
+                const user = await storage.getItem('@usuario');
 
-        // 🔥 Verifica se usuário já está logado
-        const verificarLogin = async () => {
-            try {
-                const userData = await storage.getItem('@usuario');
-                if (userData) {
-                    setUsuario(JSON.parse(userData));
+                if (dados) {
+                    const lista = JSON.parse(dados);
+                    setTransacoes(lista);
+                    setSaldo(lista.reduce((acc, t) => acc + Number(t.valor), 0));
+                }
+
+                if (user) {
+                    setUsuario(JSON.parse(user));
                 }
             } catch (error) {
-                console.log('Erro ao verificar login:', error);
+                console.log('Erro ao carregar dados:', error);
             }
         };
-        verificarLogin();
+        carregarDados();
     }, []);
 
+    /* 💾 Persistir transações */
     useEffect(() => {
-        const salvarTransacoes = async () => {
+        const salvar = async () => {
             try {
                 await storage.setItem('@transacoes', JSON.stringify(transacoes));
-                setSaldo(transacoes.reduce((acc, t) => acc + t.valor, 0));
+                setSaldo(transacoes.reduce((acc, t) => acc + Number(t.valor), 0));
             } catch (error) {
                 console.log('Erro ao salvar transações:', error);
             }
         };
-        salvarTransacoes();
+        salvar();
     }, [transacoes]);
 
-    const addTransacao = (novaTransacao) => {
-        setTransacoes(prev => {
-            const lista = [
-                ...prev,
-                { id: String(prev.length + 1), ...novaTransacao }
-            ];
-            setSaldo(lista.reduce((acc, t) => acc + t.valor, 0));
-            return lista;
-        });
+    /* ➕ CRUD */
+    const addTransacao = (nova) => {
+        setTransacoes(prev => [...prev, { id: Date.now().toString(), ...nova }]);
     };
 
-    const updateTransacao = (id, transacaoAtualizada) => {
-        setTransacoes(prev => {
-            const lista = prev.map(t => t.id === id ? { ...t, ...transacaoAtualizada } : t);
-            setSaldo(lista.reduce((acc, t) => acc + t.valor, 0));
-            return lista;
-        });
+    const updateTransacao = (id, dados) => {
+        setTransacoes(prev =>
+            prev.map(t => t.id === id ? { ...t, ...dados } : t)
+        );
     };
 
     const deleteTransacao = (id) => {
-        setTransacoes(prev => {
-            const lista = prev.filter(t => t.id !== id);
-            setSaldo(lista.reduce((acc, t) => acc + t.valor, 0));
-            return lista;
-        });
+        setTransacoes(prev => prev.filter(t => t.id !== id));
     };
 
-    // 🔥 Funções de login/logout reais
-    const handleLogin = async (userObj) => {
-        await storage.setItem('@usuario', JSON.stringify(userObj));
-        setUsuario(userObj);
+    /* 🔐 Login */
+    const handleLogin = async (user) => {
+        await storage.setItem('@usuario', JSON.stringify(user));
+        setUsuario(user);
     };
 
     const handleLogout = async () => {
@@ -119,76 +98,59 @@ export default function App() {
         setUsuario(null);
     };
 
+    /* ⏱️ Tarefa em background (mobile) */
     useEffect(() => {
         if (Platform.OS !== 'web') {
-            const registrarTarefa = async () => {
-                try {
-                    await BackgroundFetch.registerTaskAsync(TASK_NAME, {
-                        minimumInterval: 60 * 60 * 24,
-                        stopOnTerminate: false,
-                        startOnBoot: true,
-                    });
-                } catch (error) {
-                    console.log("Erro ao registrar tarefa:", error);
-                }
-            };
-            registrarTarefa();
+            BackgroundFetch.registerTaskAsync(TASK_NAME, {
+                minimumInterval: 60 * 60 * 24,
+                stopOnTerminate: false,
+                startOnBoot: true,
+            }).catch(console.log);
         }
     }, []);
 
+    /* 🔙 Botão físico Android */
     useEffect(() => {
         if (Platform.OS === 'android') {
             const backAction = () => {
-                Alert.alert(
-                    "Sair do App",
-                    "Tem certeza que deseja sair do MyMoney?",
-                    [
-                        { text: "Cancelar", style: "cancel", onPress: () => null },
-                        { text: "Sim", onPress: () => BackHandler.exitApp() }
-                    ]
-                );
+                Alert.alert("Sair do App", "Deseja sair do MyMoney?", [
+                    { text: "Cancelar", style: "cancel" },
+                    { text: "Sim", onPress: () => BackHandler.exitApp() }
+                ]);
                 return true;
             };
-
-            const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
-            return () => backHandler.remove();
+            const handler = BackHandler.addEventListener("hardwareBackPress", backAction);
+            return () => handler.remove();
         }
     }, []);
 
     return (
         <NavigationContainer>
             <Stack.Navigator initialRouteName={usuario ? "Dashboard" : "Login"}>
+
                 <Stack.Screen name="Login" options={{ title: 'Login' }}>
-                    {props => (
-                        <Login
-                            {...props}
-                            onLogin={handleLogin}
-                        />
-                    )}
+                    {props => <Login {...props} onLogin={handleLogin} />}
                 </Stack.Screen>
-                <Stack.Screen name="Registro" component={Registro} options={{ title: 'Criar Conta' }} />
-                <Stack.Screen name="Dashboard" options={{ title: 'MyMoney Dashboard' }}>
+
+                <Stack.Screen name="Registro" component={Registro} />
+
+                <Stack.Screen name="Dashboard" options={{ title: 'MyMoney' }}>
                     {props => (
                         <Dashboard
                             {...props}
                             usuario={usuario}
                             transacoes={transacoes}
                             saldo={saldo}
-                            setTransacoes={setTransacoes}
-                            setSaldo={setSaldo}
                             onLogout={handleLogout}
                         />
                     )}
                 </Stack.Screen>
-                <Stack.Screen name="Cadastro" options={{ title: 'Cadastrar Transação' }}>
-                    {props => (
-                        <Cadastro
-                            {...props}
-                            addTransacao={addTransacao}
-                        />
-                    )}
+
+                <Stack.Screen name="Cadastro">
+                    {props => <Cadastro {...props} addTransacao={addTransacao} />}
                 </Stack.Screen>
-                <Stack.Screen name="Detalhes" options={{ title: 'Detalhes da Transação' }}>
+
+                <Stack.Screen name="Detalhes">
                     {props => (
                         <Detalhes
                             {...props}
@@ -197,32 +159,29 @@ export default function App() {
                         />
                     )}
                 </Stack.Screen>
-                <Stack.Screen name="Editar" options={{ title: 'Editar Transação' }}>
-                    {props => (
-                        <Editar
-                            {...props}
-                            updateTransacao={updateTransacao}
-                        />
-                    )}
+
+                <Stack.Screen name="Editar">
+                    {props => <Editar {...props} updateTransacao={updateTransacao} />}
                 </Stack.Screen>
+
+                {/* 📊 NOVA TELA DE RELATÓRIOS */}
+                <Stack.Screen
+                    name="Relatorios"
+                    component={RelatoriosScreen}
+                    options={{ title: 'Relatórios Financeiros' }}
+                />
+
             </Stack.Navigator>
         </NavigationContainer>
     );
 }
 
+/* 📦 Background Task */
 if (Platform.OS !== 'web') {
     TaskManager.defineTask(TASK_NAME, async () => {
         try {
-            const dadosSalvos = await AsyncStorageNative.getItem('@transacoes');
-            if (dadosSalvos) {
-                const transacoes = JSON.parse(dadosSalvos);
-                const saldo = transacoes.reduce((acc, t) => acc + t.valor, 0);
-                console.log("Relatório mensal exportado automaticamente (mobile). Saldo:", saldo);
-                return BackgroundFetch.Result.NewData;
-            }
-            return BackgroundFetch.Result.NoData;
-        } catch (error) {
-            console.log("Erro na exportação automática:", error);
+            return BackgroundFetch.Result.NewData;
+        } catch {
             return BackgroundFetch.Result.Failed;
         }
     });
